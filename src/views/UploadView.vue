@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { uploadImage } from '@/api/upload'
 import { getSettings } from '@/utils/settings'
+import { resolveStorageUrl } from '@/utils/url'
 import { useCamera } from '@/composables/useCamera'
 import type { UploadResult } from '@/types/detection'
 
@@ -17,6 +18,9 @@ const videoRef = ref<HTMLVideoElement | null>(null)
 const { active, start, stop, capture } = useCamera()
 
 const canUpload = computed(() => Boolean(file.value && settings.value.apiKey && settings.value.deviceId))
+const annotatedUrl = computed(() =>
+  resolveStorageUrl(result.value?.annotated_image_url, settings.value.serverUrl),
+)
 
 const loadDailyCount = () => {
   const today = new Date().toISOString().slice(0, 10)
@@ -183,8 +187,8 @@ onMounted(() => {
         <span class="panel-subtitle">Time: {{ result.process_time_ms ?? '-' }} ms</span>
       </div>
       <img
-        v-if="result.annotated_image_url"
-        :src="result.annotated_image_url"
+        v-if="annotatedUrl"
+        :src="annotatedUrl"
         alt="annotated"
         class="preview"
       />
