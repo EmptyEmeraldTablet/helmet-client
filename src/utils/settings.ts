@@ -2,6 +2,7 @@ export type ClientSettings = {
   serverUrl: string
   apiKey: string
   deviceId: string
+  streamToken: string
 }
 
 const SETTINGS_KEY = 'helmet_client_settings'
@@ -20,6 +21,7 @@ export const getSettings = (): ClientSettings => {
     serverUrl: import.meta.env.VITE_DEFAULT_SERVER_URL || 'http://localhost:8000',
     apiKey: import.meta.env.VITE_DEFAULT_API_KEY || '',
     deviceId: '',
+    streamToken: import.meta.env.VITE_DEFAULT_STREAM_TOKEN || '',
   }
 }
 
