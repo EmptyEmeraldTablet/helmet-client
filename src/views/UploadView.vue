@@ -23,7 +23,7 @@ const frameIndex = ref(0)
 const streamTimer = ref<number | null>(null)
 const streamIntervalMs = 500
 
-const { status: streamStatus, connect, disconnect, sendStart, sendFrame, sendStop } =
+const { status: streamStatus, lastEvent, connect, disconnect, sendStart, sendFrame, sendStop } =
   useStreamSocket()
 
 const streamStatusLabel = computed(() => {
@@ -31,6 +31,30 @@ const streamStatusLabel = computed(() => {
   if (streamStatus.value === 'connecting') return 'Connecting'
   if (streamStatus.value === 'error') return 'Error'
   return 'Offline'
+})
+
+const streamFeedback = computed(() => {
+  if (!lastEvent.value) return 'No stream events yet.'
+  const event = lastEvent.value.event
+  const data = lastEvent.value.data || {}
+  if (event === 'new_result') {
+    const frameIndex = (data.frame_index as number | undefined) ?? '-'
+    const violation = data.has_violation ? 'Violation' : 'OK'
+    const latency = (data.latency_ms as number | undefined) ?? '-'
+    return `Frame ${frameIndex}: ${violation} (${latency} ms)`
+  }
+  if (event === 'alert') {
+    const frameIndex = (data.frame_index as number | undefined) ?? '-'
+    const count = (data.violation_count as number | undefined) ?? 1
+    return `Alert on frame ${frameIndex}: ${count}`
+  }
+  if (event === 'error') {
+    return `Error: ${String(data.message || 'Unknown error')}`
+  }
+  if (event === 'ack') {
+    return `Ack: ${String(data.status || 'accepted')}`
+  }
+  return `Event: ${event}`
 })
 
 const canUpload = computed(() => Boolean(file.value && settings.value.apiKey && settings.value.deviceId))
@@ -43,8 +67,8 @@ const wsUrl = computed(() => {
   const root = base.endsWith('/api') ? base.slice(0, -4) : base
   const wsBase = root.replace('https://', 'wss://').replace('http://', 'ws://')
   const trimmed = wsBase.replace(/\/$/, '')
-  const token = encodeURIComponent(settings.value.streamToken || '')
-  return `${trimmed}/ws/stream?token=${token}`
+  const apiKey = encodeURIComponent(settings.value.apiKey || '')
+  return `${trimmed}/ws/stream?api_key=${apiKey}`
 })
 
 const buildStreamId = () => {
@@ -116,8 +140,8 @@ const handleCapture = async () => {
 }
 
 const handleStartStream = async () => {
-  if (!settings.value.streamToken) {
-    ElMessage.warning('Configure stream token in Settings')
+  if (!settings.value.apiKey) {
+    ElMessage.warning('Configure API key in Settings')
     return
   }
   if (!settings.value.deviceId) {
@@ -283,6 +307,9 @@ onBeforeUnmount(() => {
             <span class="panel-subtitle" style="margin-left: 4px;">
               1-2 FPS
             </span>
+          </div>
+          <div class="panel-subtitle" style="margin-top: 8px;">
+            {{ streamFeedback }}
           </div>
         </div>
       </div>

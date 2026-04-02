@@ -28,7 +28,7 @@ const handleTest = async () => {
   <section class="panel">
     <div style="margin-bottom: 16px;">
       <div class="panel-title">Connection Settings</div>
-      <div class="panel-subtitle">Configure server endpoint, API key, and stream token.</div>
+      <div class="panel-subtitle">Configure server endpoint and API key.</div>
     </div>
 
     <el-form label-position="top" style="max-width: 520px;">
@@ -41,9 +41,6 @@ const handleTest = async () => {
       <el-form-item label="Device ID">
         <el-input v-model="form.deviceId" placeholder="device_001" />
       </el-form-item>
-      <el-form-item label="Stream Token">
-        <el-input v-model="form.streamToken" type="password" show-password />
-      </el-form-item>
       <div style="display: flex; gap: 12px;">
         <el-button type="primary" @click="handleSave">Save</el-button>
         <el-button plain :loading="testing" @click="handleTest">Test Connection</el-button>
@@ -54,8 +51,7 @@ const handleTest = async () => {
   <section class="panel">
     <div class="panel-title" style="margin-bottom: 8px;">Notes</div>
     <div class="panel-subtitle">
-      Uploads require a valid API key from the admin panel. Streaming uses a token. The test uses
-      `/health`.
+      Uploads and streaming both use the device API key. The test uses `/health`.
     </div>
   </section>
 </template>
