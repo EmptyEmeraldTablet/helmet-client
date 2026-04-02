@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { uploadImage } from '@/api/upload'
 import { getSettings } from '@/utils/settings'
@@ -55,6 +55,17 @@ const streamFeedback = computed(() => {
     return `Ack: ${String(data.status || 'accepted')}`
   }
   return `Event: ${event}`
+})
+
+const streamFrames = ref<{ url: string; timestamp: string }[]>([])
+const playbackIndex = ref(0)
+const playbackTimer = ref<number | null>(null)
+const playbackIntervalMs = 1000
+
+const playbackUrl = computed(() => {
+  if (!streamFrames.value.length) return null
+  const index = playbackIndex.value % streamFrames.value.length
+  return streamFrames.value[index]?.url || null
 })
 
 const canUpload = computed(() => Boolean(file.value && settings.value.apiKey && settings.value.deviceId))
@@ -151,10 +162,12 @@ const handleStartStream = async () => {
   if (streaming.value) return
 
   try {
+    if (streamStatus.value !== 'open') {
+      await connect(wsUrl.value)
+    }
     if (!active.value) {
       await start(videoRef.value)
     }
-    await connect(wsUrl.value)
   } catch (error) {
     ElMessage.error('Stream connection failed')
     return
@@ -187,16 +200,36 @@ const handleStartStream = async () => {
   }, streamIntervalMs)
 }
 
-const handleStopStream = () => {
+const stopStreaming = () => {
   if (!streaming.value) return
   if (streamTimer.value) {
     window.clearInterval(streamTimer.value)
     streamTimer.value = null
   }
   sendStop({ stream_id: streamId.value })
-  disconnect()
   streaming.value = false
   stop()
+}
+
+const handleStopStream = () => {
+  stopStreaming()
+}
+
+const handleConnect = async () => {
+  if (!settings.value.apiKey) {
+    ElMessage.warning('Configure API key in Settings')
+    return
+  }
+  try {
+    await connect(wsUrl.value)
+  } catch (error) {
+    ElMessage.error('Connection failed')
+  }
+}
+
+const handleDisconnect = () => {
+  stopStreaming()
+  disconnect()
 }
 
 const handleUpload = async () => {
@@ -233,8 +266,44 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  handleStopStream()
+  stopStreaming()
+  disconnect()
+  if (playbackTimer.value) {
+    window.clearInterval(playbackTimer.value)
+    playbackTimer.value = null
+  }
 })
+
+watch(lastEvent, (event) => {
+  if (!event?.data) return
+  if (event.event !== 'new_result' && event.event !== 'alert') return
+  const data = event.data
+  const annotated = data.annotated_image_url as string | undefined
+  const original = data.original_image_url as string | undefined
+  const rawUrl = annotated || original
+  if (!rawUrl) return
+  const resolved = resolveStorageUrl(rawUrl, settings.value.serverUrl)
+  if (!resolved) return
+  const timestamp = String(data.created_at || new Date().toISOString())
+  streamFrames.value = [{ url: resolved, timestamp }, ...streamFrames.value].slice(0, 12)
+  playbackIndex.value = 0
+})
+
+watch(
+  () => streamFrames.value.length,
+  (length) => {
+    if (length > 1 && playbackTimer.value === null) {
+      playbackTimer.value = window.setInterval(() => {
+        if (!streamFrames.value.length) return
+        playbackIndex.value = (playbackIndex.value + 1) % streamFrames.value.length
+      }, playbackIntervalMs)
+    }
+    if (length <= 1 && playbackTimer.value !== null) {
+      window.clearInterval(playbackTimer.value)
+      playbackTimer.value = null
+    }
+  },
+)
 </script>
 
 <template>
@@ -279,6 +348,22 @@ onBeforeUnmount(() => {
       <div class="panel" style="box-shadow: none;">
         <div class="panel-title" style="font-size: 16px;">Camera Capture</div>
         <div class="camera-shell">
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <el-button
+              v-if="streamStatus !== 'open'"
+              type="primary"
+              plain
+              @click="handleConnect"
+            >
+              Connect
+            </el-button>
+            <el-button v-else type="warning" plain @click="handleDisconnect">
+              Disconnect
+            </el-button>
+            <el-tag :type="streamStatus === 'open' ? 'success' : 'warning'">
+              {{ streamStatusLabel }}
+            </el-tag>
+          </div>
           <video ref="videoRef" class="camera-video" autoplay playsinline muted></video>
           <div style="display: flex; gap: 8px;">
             <el-button v-if="!active" type="primary" plain @click="handleStartCamera">
@@ -301,15 +386,22 @@ onBeforeUnmount(() => {
               Start Stream
             </el-button>
             <el-button v-else type="danger" @click="handleStopStream">Stop Stream</el-button>
-            <el-tag :type="streamStatus === 'open' ? 'success' : 'warning'">
-              {{ streamStatusLabel }}
-            </el-tag>
             <span class="panel-subtitle" style="margin-left: 4px;">
               1-2 FPS
             </span>
           </div>
           <div class="panel-subtitle" style="margin-top: 8px;">
             {{ streamFeedback }}
+          </div>
+          <div class="stream-preview-shell">
+            <div class="panel-subtitle">Recent Frames</div>
+            <img
+              v-if="playbackUrl"
+              :src="playbackUrl"
+              alt="stream preview"
+              class="stream-preview"
+            />
+            <div v-else class="panel-subtitle">No frames received yet.</div>
           </div>
         </div>
       </div>

@@ -120,6 +120,22 @@
   background: #0f172a;
 }
 
+.stream-preview-shell {
+  display: grid;
+  gap: 8px;
+  align-items: start;
+}
+
+.stream-preview {
+  width: 100%;
+  max-width: 240px;
+  height: 160px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  object-fit: cover;
+}
+
 @media (max-width: 768px) {
   .client-header,
   .client-nav,
