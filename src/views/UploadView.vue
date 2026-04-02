@@ -68,6 +68,13 @@ const playbackUrl = computed(() => {
   return streamFrames.value[index]?.url || null
 })
 
+const stopPlayback = () => {
+  if (playbackTimer.value) {
+    window.clearInterval(playbackTimer.value)
+    playbackTimer.value = null
+  }
+}
+
 const canUpload = computed(() => Boolean(file.value && settings.value.apiKey && settings.value.deviceId))
 const annotatedUrl = computed(() =>
   resolveStorageUrl(result.value?.annotated_image_url, settings.value.serverUrl),
@@ -209,6 +216,7 @@ const stopStreaming = () => {
   sendStop({ stream_id: streamId.value })
   streaming.value = false
   stop()
+  stopPlayback()
 }
 
 const handleStopStream = () => {
@@ -230,6 +238,7 @@ const handleConnect = async () => {
 const handleDisconnect = () => {
   stopStreaming()
   disconnect()
+  stopPlayback()
 }
 
 const handleUpload = async () => {
@@ -268,10 +277,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopStreaming()
   disconnect()
-  if (playbackTimer.value) {
-    window.clearInterval(playbackTimer.value)
-    playbackTimer.value = null
-  }
+  stopPlayback()
 })
 
 watch(lastEvent, (event) => {
@@ -299,11 +305,16 @@ watch(
       }, playbackIntervalMs)
     }
     if (length <= 1 && playbackTimer.value !== null) {
-      window.clearInterval(playbackTimer.value)
-      playbackTimer.value = null
+      stopPlayback()
     }
   },
 )
+
+watch(streamStatus, (value) => {
+  if (value === 'closed' || value === 'error') {
+    stopPlayback()
+  }
+})
 </script>
 
 <template>
