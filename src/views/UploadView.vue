@@ -26,6 +26,34 @@ const streamIntervalMs = 500
 const { status: streamStatus, lastEvent, connect, disconnect, sendStart, sendFrame, sendStop } =
   useStreamSocket()
 
+const normalizeLabel = (label: string) => {
+  const key = label.toLowerCase()
+  if (key === 'no_helmet' || key === 'head') return 'no_helmet'
+  if (key === 'helmet' || key === 'vest') return key
+  return key
+}
+
+const getSafetyCounts = (detections: UploadResult['detections'] | null | undefined) => {
+  const items = detections ?? []
+  let helmetCount = 0
+  let vestCount = 0
+  for (const item of items) {
+    const label = normalizeLabel(item.label)
+    if (label === 'helmet') helmetCount += 1
+    if (label === 'vest') vestCount += 1
+  }
+  return { helmetCount, vestCount, total: items.length }
+}
+
+const isSafetyViolation = (
+  detections: UploadResult['detections'] | null | undefined,
+  fallback?: boolean,
+) => {
+  const { helmetCount, vestCount, total } = getSafetyCounts(detections)
+  if (!total) return Boolean(fallback)
+  return helmetCount === 0 || vestCount === 0
+}
+
 const streamStatusLabel = computed(() => {
   if (streamStatus.value === 'open') return 'Connected'
   if (streamStatus.value === 'connecting') return 'Connecting'
@@ -39,7 +67,12 @@ const streamFeedback = computed(() => {
   const data = lastEvent.value.data || {}
   if (event === 'new_result') {
     const frameIndex = (data.frame_index as number | undefined) ?? '-'
-    const violation = data.has_violation ? 'Violation' : 'OK'
+    const detections = Array.isArray(data.detections)
+      ? (data.detections as UploadResult['detections'])
+      : []
+    const violation = isSafetyViolation(detections, data.has_violation as boolean | undefined)
+      ? 'Violation'
+      : 'Compliant'
     const latency = (data.latency_ms as number | undefined) ?? '-'
     return `Frame ${frameIndex}: ${violation} (${latency} ms)`
   }
@@ -78,6 +111,9 @@ const stopPlayback = () => {
 const canUpload = computed(() => Boolean(file.value && settings.value.apiKey && settings.value.deviceId))
 const annotatedUrl = computed(() =>
   resolveStorageUrl(result.value?.annotated_image_url, settings.value.serverUrl),
+)
+const resultViolation = computed(() =>
+  isSafetyViolation(result.value?.detections, result.value?.has_violation),
 )
 
 const wsUrl = computed(() => {
@@ -322,7 +358,7 @@ watch(streamStatus, (value) => {
     <div style="display: flex; justify-content: space-between; align-items: center;">
       <div>
         <div class="panel-title">Upload & Detect</div>
-        <div class="panel-subtitle">Submit images for helmet detection.</div>
+        <div class="panel-subtitle">Submit images for helmet + vest detection.</div>
       </div>
       <div class="badge">Today: {{ dailyCount }} uploads</div>
     </div>
@@ -427,8 +463,8 @@ watch(streamStatus, (value) => {
 
     <div v-if="result">
       <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
-        <el-tag :type="result.has_violation ? 'danger' : 'success'">
-          {{ result.has_violation ? 'Violation' : 'Compliant' }}
+        <el-tag :type="resultViolation ? 'danger' : 'success'">
+          {{ resultViolation ? 'Violation' : 'Compliant' }}
         </el-tag>
         <span class="panel-subtitle">Detections: {{ result.detections.length }}</span>
         <span class="panel-subtitle">Time: {{ result.process_time_ms ?? '-' }} ms</span>
