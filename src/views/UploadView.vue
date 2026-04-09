@@ -377,7 +377,9 @@ watch(streamStatus, (value) => {
         </el-upload>
 
         <div style="margin-top: 16px;">
-          <img v-if="previewUrl" class="preview" :src="previewUrl" alt="preview" />
+          <div v-if="previewUrl" class="media-frame media-frame--preview">
+            <img class="preview" :src="previewUrl" alt="preview" />
+          </div>
           <div v-else class="panel-subtitle">No image selected.</div>
         </div>
 
@@ -411,7 +413,9 @@ watch(streamStatus, (value) => {
               {{ streamStatusLabel }}
             </el-tag>
           </div>
-          <video ref="videoRef" class="camera-video" autoplay playsinline muted></video>
+          <div class="media-frame media-frame--video">
+            <video ref="videoRef" class="camera-video" autoplay playsinline muted></video>
+          </div>
           <div style="display: flex; gap: 8px;">
             <el-button v-if="!active" type="primary" plain @click="handleStartCamera">
               Start Camera
@@ -442,12 +446,13 @@ watch(streamStatus, (value) => {
           </div>
           <div class="stream-preview-shell">
             <div class="panel-subtitle">Recent Frames</div>
-            <img
-              v-if="playbackUrl"
-              :src="playbackUrl"
-              alt="stream preview"
-              class="stream-preview"
-            />
+            <div v-if="playbackUrl" class="media-frame media-frame--small">
+              <img
+                :src="playbackUrl"
+                alt="stream preview"
+                class="stream-preview"
+              />
+            </div>
             <div v-else class="panel-subtitle">No frames received yet.</div>
           </div>
         </div>
@@ -469,12 +474,13 @@ watch(streamStatus, (value) => {
         <span class="panel-subtitle">Detections: {{ result.detections.length }}</span>
         <span class="panel-subtitle">Time: {{ result.process_time_ms ?? '-' }} ms</span>
       </div>
-      <img
-        v-if="annotatedUrl"
-        :src="annotatedUrl"
-        alt="annotated"
-        class="preview"
-      />
+      <div v-if="annotatedUrl" class="media-frame media-frame--preview">
+        <img
+          :src="annotatedUrl"
+          alt="annotated"
+          class="preview"
+        />
+      </div>
       <div style="margin-top: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">
         Task: {{ result.task_id }}
       </div>
